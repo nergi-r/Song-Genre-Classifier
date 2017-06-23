@@ -2,6 +2,8 @@
 
 An application to predict Indonesiang songs genre based on its lyric.
 
+Genre prediction includes: Pop, Rock, Hip Hop, Dangdut.
+
 How it works:
 1. Convert the given lyric into vector space using CountVectorizer
 2. Convert into Tf-Idf matrix using TfidfTransformer
