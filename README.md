@@ -1,6 +1,6 @@
 # Song-Genre-Classifier
 
-An application to predict Indonesiang songs genre based on its lyric.
+An application to predict Indonesian songs genre based on its lyric.
 
 Genre prediction includes: Pop, Rock, Hip Hop, Dangdut.
 
