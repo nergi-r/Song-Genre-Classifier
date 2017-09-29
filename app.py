@@ -11,102 +11,119 @@ import re
 import sys
 from Tkinter import *
 
-use_lsa = True
-testAccuracy = True
+def prepareData(fileName, categories):
+		# Prepare dataset for training or testing
 
-categories = ['pop', 'dangdut', 'hiphop', 'rock']
+		dataset = {'data': [], 'target': [], 'target_names': categories}
+		with open(fileName) as f:
+		  	dataset['data'] = f.readlines()
+		dataset['data'] = [x.strip() for x in dataset['data']]
 
-dataset = {'data': [], 'target': [], 'target_names': categories}
-with open("dataset.txt") as f:
-  dataset['data'] = f.readlines()
-dataset['data'] = [x.strip() for x in dataset['data']]
+		numberOfSongs = len(dataset['data']) / len(categories)
+		for i in xrange(len(categories)):
+				for j in xrange(numberOfSongs):
+						dataset['target'].append(i)
 
-n_songs = len(dataset['data']) / len(categories)
-for i in xrange(len(categories)):
-	for j in xrange(n_songs):
-		dataset['target'].append(i)
+		return dataset
 
-count_vect = CountVectorizer()
-X_train_counts = count_vect.fit_transform(dataset['data'])
-tfidf_transformer = TfidfTransformer()
-X_train_tfidf = tfidf_transformer.fit_transform(X_train_counts)
+def train(categories):
+		# Process train data with tfidf
+		# Apply lsa to the tfidf model
+		# Train SVM with the model
+		# Return lsa model, count vector, tfidf transformer, SVM prediction model
 
-if(use_lsa):
-	lsa = NMF(n_components=40, random_state=90)
-	X_train_tfidf = lsa.fit_transform(X_train_tfidf)
-	X_train_tfidf = Normalizer(copy=False).fit_transform(X_train_tfidf)
+		dataset = prepareData("dataset.txt", categories)
 
-clf = SVC().fit(X_train_tfidf, dataset['target'])
+		countVector = CountVectorizer()
+		XTrainCounts = countVector.fit_transform(dataset['data'])
+		tfidfTransformer = TfidfTransformer()
+		XTrainTfidf = tfidfTransformer.fit_transform(XTrainCounts)
 
-if(testAccuracy):
-	testset = {'data': [], 'target': [], 'target_names': categories}
-	with open("testset.txt") as f:
-	  testset['data'] = f.readlines()
-	testset['data'] = [x.strip() for x in testset['data']]
+		lsa = NMF(n_components=40, random_state=90)
+		XTrainTfidf = lsa.fit_transform(XTrainTfidf)
+		XTrainTfidf = Normalizer(copy=False).fit_transform(XTrainTfidf)
 
-	n_songs = len(testset['data']) / len(categories)
-	for i in xrange(len(categories)):
-		for j in xrange(n_songs):
-			testset['target'].append(i)
+		return lsa, countVector, tfidfTransformer, SVC().fit(XTrainTfidf, dataset['target'])
 
-	documents = testset['data']
-	X_test_counts = count_vect.transform(documents)
-	X_test_tfidf = tfidf_transformer.transform(X_test_counts)
+def testAccuracy(categories, lsa, countVector, tfidfTransformer, svm):
+		# Process test data with tfidf
+		# Apply lsa to the tfidf model
+		# Return accuracy of test set using trained SVM model
 
-	if(use_lsa):
-		X_test_tfidf = lsa.transform(X_test_tfidf)
-		X_test_tfidf = Normalizer(copy=False).transform(X_test_tfidf)
+		testSet = prepareData("testset.txt", categories)
+		documents = testSet['data']
+		XTestCounts = countVector.transform(documents)
+		XTestTfIdf = tfidfTransformer.transform(XTestCounts)
 
-	predicted = clf.predict(X_test_tfidf)
-	acc = np.mean(predicted == testset['target'])
+		XTestTfIdf = lsa.transform(XTestTfIdf)
+		XTestTfIdf = Normalizer(copy=False).transform(XTestTfIdf)
 
-	print(predicted)
-	print('Accuracy: ' + str(acc*100) + '%')
+		prediction = svm.predict(XTestTfIdf)
+		prediction = ", ".join(map(str, prediction))
+		accuracy = np.mean(prediction == testSet['target'])
 
-def parse(lyrics):
-	lyrics = re.sub('[^a-zA-Z\n]', ' ', lyrics)
-	lyrics = lyrics.lower()
-	return lyrics
+		print(testSet['target'])
+		print("[" + prediction + "]")
+		return accuracy
 
-def solve():
-	lyrics = newInput.get()
-	documents = [parse(lyrics)]
-	X_new_counts = count_vect.transform(documents)
-	X_new_tfidf = tfidf_transformer.transform(X_new_counts)
+def runApplication(categories, lsa, countVector, tfidfTransformer, svm):
+		# Create UI with tkinter
+		# Use trained SVM model to predict new lyrics
 
-	if(use_lsa):
-		X_new_tfidf = lsa.transform(X_new_tfidf)
-		X_new_tfidf = Normalizer(copy=False).transform(X_new_tfidf)
+		window = Tk()
+		window.geometry("600x400+0+0")
+		window.title("Song Genre Classifier")
+		output = StringVar()
+		newInput = StringVar()
 
-	predicted = clf.predict(X_new_tfidf)
-	output.set("Genre: " + categories[predicted[0]])
-	return
+		def parse(lyrics):
+				lyrics = re.sub('[^a-zA-Z\n]', ' ', lyrics)
+				lyrics = lyrics.lower()
+				return lyrics
 
-def callback(event):
-    root.after(50, select_all, event.widget)
+		def solve():
+				lyrics = newInput.get()
+				documents = [parse(lyrics)]
+				XNewCounts = countVector.transform(documents)
+				XNewTfidf = tfidfTransformer.transform(XNewCounts)
 
-def select_all(widget):
-    widget.select_range(0, 'end')
-    widget.icursor('end')
+				XNewTfidf = lsa.transform(XNewTfidf)
+				XNewTfidf = Normalizer(copy=False).transform(XNewTfidf)
 
-root = Tk()
-root.geometry("600x400+0+0")
-root.title("Song Genre Classifier")
-output = StringVar()
-newInput = StringVar()
+				prediction = svm.predict(XNewTfidf)
+				output.set("Genre: " + categories[prediction[0]])
 
-newline = Label(root, text="\n\n").pack()
-title = Label(root, text="Input Lyrics", font=("Helvetica", 20)).pack()
-newline = Label(root, text="").pack()
+		def callback(event):
+		    window.after(50, select_all, event.widget)
 
-entry = Entry(root, textvariable=newInput, width=50, font=("Helvetica", 20))
-entry.focus()
-entry.bind('<Control-a>', callback)
-entry.pack()
-newline = Label(root, text="\n\n").pack()
+		def select_all(widget):
+		    widget.select_range(0, 'end')
+		    widget.icursor('end')
 
-button1 = Button(root, text="Submit", command=solve, fg="black", bg="green", font=("Helvetica", 16)).pack()
-newline = Label(root, text="\n").pack()
-outputLabel = Label(root, textvariable=output, font=("Helvetica", 20)).pack()
+		newline = Label(window, text="\n\n").pack()
+		title = Label(window, text="Input Lyrics", font=("Helvetica", 20)).pack()
+		newline = Label(window, text="").pack()
 
-root.mainloop()
+		entry = Entry(window, textvariable=newInput, width=50, font=("Helvetica", 20))
+		entry.focus()
+		entry.bind('<Control-a>', callback)
+		entry.pack()
+		newline = Label(window, text="\n\n").pack()
+
+		button1 = Button(window, text="Submit", command=solve, fg="black", bg="green", font=("Helvetica", 16)).pack()
+		newline = Label(window, text="\n").pack()
+		outputLabel = Label(window, textvariable=output, font=("Helvetica", 20)).pack()
+
+		window.mainloop()
+
+def main():
+		categories = ['pop', 'dangdut', 'hiphop', 'rock']
+
+		lsa, countVector, tfidfTransformer, svm = train(categories)
+		
+		accuracy = testAccuracy(categories, lsa, countVector, tfidfTransformer, svm)
+		print('Accuracy: ' + str(accuracy*100) + '%')
+
+		runApplication(categories, lsa, countVector, tfidfTransformer, svm)
+
+main()
